@@ -20,106 +20,124 @@
 */
 
 (function () {
-    // special patch to correctly work on Ripple emulator (CB-9760)
-    if (window.parent && !!window.parent.ripple) { // https://gist.github.com/triceam/4658021
-        module.exports = window.open.bind(window); // fallback to default window.open behaviour
-        return;
-    }
+	// special patch to correctly work on Ripple emulator (CB-9760)
+	if (window.parent && !!window.parent.ripple) { // https://gist.github.com/triceam/4658021
+		module.exports = window.open.bind(window); // fallback to default window.open behaviour
+		return;
+	}
 
-    var exec = require('cordova/exec');
-    var channel = require('cordova/channel');
-    var modulemapper = require('cordova/modulemapper');
-    var urlutil = require('cordova/urlutil');
+	var exec = require('cordova/exec');
+	var channel = require('cordova/channel');
+	var modulemapper = require('cordova/modulemapper');
+	var urlutil = require('cordova/urlutil');
 
-    function InAppBrowser () {
-        this.channels = {
-            'beforeload': channel.create('beforeload'),
-            'loadstart': channel.create('loadstart'),
-            'loadstop': channel.create('loadstop'),
-            'loaderror': channel.create('loaderror'),
-            'exit': channel.create('exit'),
-            'customscheme': channel.create('customscheme'),
-            'message': channel.create('message')
-        };
-    }
+	function InAppBrowser() {
+		this.channels = {
+			'beforeload': channel.create('beforeload'),
+			'loadstart': channel.create('loadstart'),
+			'loadstop': channel.create('loadstop'),
+			'loaderror': channel.create('loaderror'),
+			'exit': channel.create('exit'),
+			'customscheme': channel.create('customscheme'),
+			'message': channel.create('message')
+		};
+	}
 
-    InAppBrowser.prototype = {
-        _eventHandler: function (event) {
-            if (event && (event.type in this.channels)) {
-                if (event.type === 'beforeload') {
-                    this.channels[event.type].fire(event, this._loadAfterBeforeload);
-                } else {
-                    this.channels[event.type].fire(event);
-                }
-            }
-        },
-        _loadAfterBeforeload: function (strUrl) {
-            strUrl = urlutil.makeAbsolute(strUrl);
-            exec(null, null, 'InAppBrowser', 'loadAfterBeforeload', [strUrl]);
-        },
-        close: function (eventname) {
-            exec(null, null, 'InAppBrowser', 'close', []);
-        },
-        show: function (eventname) {
-            exec(null, null, 'InAppBrowser', 'show', []);
-        },
-        hide: function (eventname) {
-            exec(null, null, 'InAppBrowser', 'hide', []);
-        },
-        addEventListener: function (eventname, f) {
-            if (eventname in this.channels) {
-                this.channels[eventname].subscribe(f);
-            }
-        },
-        removeEventListener: function (eventname, f) {
-            if (eventname in this.channels) {
-                this.channels[eventname].unsubscribe(f);
-            }
-        },
+	InAppBrowser.prototype = {
+		_eventHandler: function (event) {
+			if (event && (event.type in this.channels)) {
+				if (event.type === 'beforeload') {
+					this.channels[event.type].fire(event, this._loadAfterBeforeload);
+				} else {
+					this.channels[event.type].fire(event);
+				}
+			}
+		},
+		_loadAfterBeforeload: function (strUrl) {
+			strUrl = urlutil.makeAbsolute(strUrl);
+			exec(null, null, 'InAppBrowser', 'loadAfterBeforeload', [strUrl]);
+		},
+		close: function (eventname) {
+			exec(null, null, 'InAppBrowser', 'close', []);
+		},
+		show: function (eventname) {
+			exec(null, null, 'InAppBrowser', 'show', []);
+		},
+		hide: function (eventname) {
+			exec(null, null, 'InAppBrowser', 'hide', []);
+		},
+		addEventListener: function (eventname, f) {
+			if (eventname in this.channels) {
+				this.channels[eventname].subscribe(f);
+			}
+		},
+		removeEventListener: function (eventname, f) {
+			if (eventname in this.channels) {
+				this.channels[eventname].unsubscribe(f);
+			}
+		},
 
-        executeScript: function (injectDetails, cb) {
-            if (injectDetails.code) {
-                exec(cb, null, 'InAppBrowser', 'injectScriptCode', [injectDetails.code, !!cb]);
-            } else if (injectDetails.file) {
-                exec(cb, null, 'InAppBrowser', 'injectScriptFile', [injectDetails.file, !!cb]);
-            } else {
-                throw new Error('executeScript requires exactly one of code or file to be specified');
-            }
-        },
+		executeScript: function (injectDetails, cb) {
+			if (injectDetails.code) {
+				exec(cb, null, 'InAppBrowser', 'injectScriptCode', [injectDetails.code, !!cb]);
+			} else if (injectDetails.file) {
+				exec(cb, null, 'InAppBrowser', 'injectScriptFile', [injectDetails.file, !!cb]);
+			} else {
+				throw new Error('executeScript requires exactly one of code or file to be specified');
+			}
+		},
 
-        insertCSS: function (injectDetails, cb) {
-            if (injectDetails.code) {
-                exec(cb, null, 'InAppBrowser', 'injectStyleCode', [injectDetails.code, !!cb]);
-            } else if (injectDetails.file) {
-                exec(cb, null, 'InAppBrowser', 'injectStyleFile', [injectDetails.file, !!cb]);
-            } else {
-                throw new Error('insertCSS requires exactly one of code or file to be specified');
-            }
-        }
-    };
+		insertCSS: function (injectDetails, cb) {
+			if (injectDetails.code) {
+				exec(cb, null, 'InAppBrowser', 'injectStyleCode', [injectDetails.code, !!cb]);
+			} else if (injectDetails.file) {
+				exec(cb, null, 'InAppBrowser', 'injectStyleFile', [injectDetails.file, !!cb]);
+			} else {
+				throw new Error('insertCSS requires exactly one of code or file to be specified');
+			}
+		},
 
-    module.exports = function (strUrl, strWindowName, strWindowFeatures, callbacks) {
-        // Don't catch calls that write to existing frames (e.g. named iframes).
-        if (window.frames && window.frames[strWindowName]) {
-            var origOpenFunc = modulemapper.getOriginalSymbol(window, 'open');
-            return origOpenFunc.apply(window, arguments);
-        }
+		//Gets cookie by Domain from the inAppWebView and adds it to the cordovaWebView.
+		getCookies: function (cookieDetails, cb) {
+			if (cookieDetails.url) {
+				exec(cb, null, "InAppBrowser", "getCookies", [cookieDetails.url, !!cb])
+			} else {
+				throw new Error('getCookie requires a url to be specified')
+			}
+		},
 
-        strUrl = urlutil.makeAbsolute(strUrl);
-        var iab = new InAppBrowser();
+		//Gets cookie by Domain from the cordovaWebView and adds it to the inAppWebView.
+		setCookies: function (cookieDtails, cb) {
+			if (cookieDetails.url) {
+				exec(cb, null, "InAppBrowser", "setCookies", [cookieDetails.url, !!cb])
+			} else {
+				throw new Error('setCookie requires a url to be specified')
+			}
+		}
+	};
 
-        callbacks = callbacks || {};
-        for (var callbackName in callbacks) {
-            iab.addEventListener(callbackName, callbacks[callbackName]);
-        }
+	module.exports = function (strUrl, strWindowName, strWindowFeatures, callbacks) {
+		// Don't catch calls that write to existing frames (e.g. named iframes).
+		if (window.frames && window.frames[strWindowName]) {
+			var origOpenFunc = modulemapper.getOriginalSymbol(window, 'open');
+			return origOpenFunc.apply(window, arguments);
+		}
 
-        var cb = function (eventname) {
-            iab._eventHandler(eventname);
-        };
+		strUrl = urlutil.makeAbsolute(strUrl);
+		var iab = new InAppBrowser();
 
-        strWindowFeatures = strWindowFeatures || '';
+		callbacks = callbacks || {};
+		for (var callbackName in callbacks) {
+			iab.addEventListener(callbackName, callbacks[callbackName]);
+		}
 
-        exec(cb, cb, 'InAppBrowser', 'open', [strUrl, strWindowName, strWindowFeatures]);
-        return iab;
-    };
+		var cb = function (eventname) {
+			iab._eventHandler(eventname);
+		};
+
+		strWindowFeatures = strWindowFeatures || '';
+
+		exec(cb, cb, 'InAppBrowser', 'open', [strUrl, strWindowName, strWindowFeatures]);
+		return iab;
+	};
 })();
